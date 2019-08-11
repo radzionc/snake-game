@@ -76,13 +76,294 @@ const getSegmentsFromVectors = vectors => getWithoutLastElement(vectors)
 // #endregion
 
 // #region constants
+const STOP_KEY = 32
+
+const MOVEMENT_KEYS = {
+  TOP: [87, 38],
+  LEFT: [65, 37],
+  RIGHT: [68, 39],
+  DOWN: [83, 40]
+}
+
+const DIRECTION = {
+  TOP: new Vector(0, -1),
+  RIGHT: new Vector(1, 0),
+  DOWN: new Vector(0, 1),
+  LEFT: new Vector(-1, 0)
+}
+
+const DEFAULT_GAME_CONFIG = {
+  width: 17,
+  height: 15,
+  speed: 0.006,
+  initialSnakeLenght: 3,
+  initialDirection: DIRECTION.RIGHT
+}
+
+const MOVEMENT = {
+  TOP: 'TOP',
+  RIGHT: 'RIGHT',
+  DOWN: 'DOWN',
+  LEFT: 'LEFT'
+}
+
+const UPDATE_EVERY = 1000 / 60
 // #endregion
 
 // #region game core
+const getFood = (width, height, snake) => {
+  const allPositions = getRange(width).map(x =>
+    getRange(height).map(y => new Vector(x + 0.5, y + 0.5))
+  ).flat()
+  const segments = getSegmentsFromVectors(snake)
+  const freePositions = allPositions
+    .filter(point => segments.every(segment => !segment.isPointInside(point)))
+  return getRandomFrom(freePositions)
+}
+
+const getGameInitialState = (config = {}) => {
+  const {
+    width,
+    height,
+    speed,
+    initialSnakeLenght,
+    initialDirection
+  } = { ...config, ...DEFAULT_GAME_CONFIG }
+  const head = new Vector(
+    Math.round(width / 2) - 0.5,
+    Math.round(height / 2) - 0.5
+  )
+  const snake = [
+    head.subtract(initialDirection.scaleBy(initialSnakeLenght)),
+    head
+  ]
+  const food = getFood(width, height, snake)
+  return {
+    width,
+    height,
+    speed,
+    initialSnakeLenght,
+    initialDirection,
+    snake,
+    direction: initialDirection,
+    food,
+    score: 0
+  }
+}
+
+const getNewDirection = (oldDirection, movement) => {
+  const newDirection = DIRECTION[movement]
+  const shouldChange = newDirection && !oldDirection.isOpposite(newDirection)
+  return shouldChange ? newDirection : oldDirection
+}
+
+const getNewTail = (oldSnake, distance) => {
+  const { tail } = getWithoutLastElement(oldSnake).reduce((acc, point, index) => {
+    if (acc.tail.length !== 0) {
+      return {
+        ...acc,
+        tail: [...acc.tail, point]
+      }
+    }
+
+    const next = oldSnake[index + 1]
+    const segment = new Segment(point, next)
+    const length = segment.length()
+    if (length >= distance) {
+      const vector = segment.getVector().normalize().scaleBy(acc.distance)
+      return {
+        distance: 0,
+        tail: [...acc.tail, point.add(vector)]
+      }
+    } else {
+      return {
+        ...acc,
+        distance: acc.distance - length
+      }
+    }
+  }, { distance, tail: [] })
+
+  return tail
+}
+
+const getStateAfterMoveProcessing = (state, movement, distance) => {
+  const newTail = getNewTail(state.snake, distance)
+  const oldHead = getLastElement(state.snake)
+  const newHead = oldHead.add(state.direction.scaleBy(distance))
+  const newDirection = getNewDirection(state.direction, movement)
+  if (!state.direction.equalTo(newDirection)) {
+    const { x: oldX, y: oldY } = oldHead
+    const [
+      oldXRounded,
+      oldYRounded,
+      newXRounded,
+      newYRounded
+    ] = [oldX, oldY, newHead.x, newHead.y].map(Math.round)
+    const getStateWithBrokenSnake = (old, oldRounded, newRounded, getBreakpoint) => {
+      const breakpointComponent = oldRounded + (newRounded > oldRounded ? 0.5 : -0.5)
+      const breakpoint = getBreakpoint(breakpointComponent)
+      const vector = newDirection.scaleBy(distance - Math.abs(old - breakpointComponent))
+      const head = breakpoint.add(vector)
+      return {
+        ...state,
+        direction: newDirection,
+        snake: [...newTail, breakpoint, head]
+      }
+    }
+    if (oldXRounded !== newXRounded) {
+      return getStateWithBrokenSnake(oldX, oldXRounded, newXRounded, x => new Vector(x, oldY))
+    }
+    if (oldYRounded !== newYRounded) {
+      return getStateWithBrokenSnake(oldY, oldYRounded, newYRounded, y => new Vector(oldX, y))
+    }
+  }
+  return {
+    ...state,
+    snake: [...newTail, newHead]
+  }
+}
+
+const getStateAfterFoodProcessing = (state) => {
+  const headSegment = new Segment(
+    getLastElement(getWithoutLastElement(state.snake)),
+    getLastElement(state.snake)
+  )
+  if (!headSegment.isPointInside(state.food)) return state
+
+  const [tailEnd, beforeTailEnd, ...restOfSnake] = state.snake
+  const tailSegment = new Segment(beforeTailEnd, tailEnd)
+  const newTailEnd = tailEnd.add(tailSegment.getVector().normalize())
+  const snake = [newTailEnd, beforeTailEnd, ...restOfSnake]
+  const food = getFood(state.width, state.height, snake)
+  return {
+    ...state,
+    snake,
+    score: state.score + 1,
+    food
+  }
+}
+
+const isGameOver = ({ snake, width, height }) => {
+  const { x, y } = getLastElement(snake)
+  if (x < 0 || x > width || y < 0 || y > height) {
+    return true
+  }
+  if (snake.length < 5) return false
+
+  const [head, ...tail] = snake.slice().reverse()
+  return getSegmentsFromVectors(tail).slice(2).find(segment => {
+    const projected = segment.getProjectedPoint(head)
+    if (!segment.isPointInside(projected)) {
+      return false
+    }
+    const distance = new Segment(head, projected).length()
+    return  distance < 0.5
+  })
+}
+
+const getNewGameState = (state, movement, timespan) => {
+  const distance = state.speed * timespan
+  const stateAfterMove = getStateAfterMoveProcessing(state, movement, distance)
+  const stateAfterFood = getStateAfterFoodProcessing(stateAfterMove)
+  if (isGameOver(stateAfterFood)) {
+    return getGameInitialState(state)
+  }
+  return stateAfterFood
+}
 // #endregion
 
 // #region rendering
+const getProjectors = (containerSize, gameSize) => {
+  const widthRatio = containerSize.width / gameSize.width
+  const heightRatio = containerSize.height / gameSize.height
+  const unitOnScreen = Math.min(widthRatio, heightRatio)
+
+  return {
+    projectDistance: distance => distance * unitOnScreen,
+    projectPosition: position => position.scaleBy(unitOnScreen)
+  }
+}
+
+const getContainerSize = () => {
+  const { width, height } = document.getElementById('container').getBoundingClientRect()
+  return { width, height }
+}
+
+const renderCells = (context, sellSide, width, height) => {
+  context.globalAlpha = 0.2
+  getRange(width).forEach(column => getRange(height).forEach(row => {
+    if ((column + row) % 2 === 1) {
+      context.fillRect(column * sellSide, row * sellSide, sellSide, sellSide)
+    }
+  }))
+  context.globalAlpha = 1
+}
+
+const renderFood = (context, sellSide, { x, y }) => {
+  context.beginPath()
+  context.arc(x, y, sellSide / 2.5, 0, 2 * Math.PI)
+  context.fillStyle = '#e74c3c'
+  context.fill()
+}
+
+const renderSnake = (context, sellSide, snake) => {
+  context.lineWidth = sellSide
+  context.strokeStyle = '#3498db'
+  context.beginPath()
+  snake.forEach(({ x, y }) => context.lineTo(x, y))
+  context.stroke()
+}
+
+const renderScores = (score, bestScore) => {
+  document.getElementById('current-score').innerText = score
+  document.getElementById('best-score').innerText = bestScore
+}
+
+const getContainer = () => document.getElementById('container')
+
+const clearContainer = () => {
+  const container = getContainer()
+  const [child] = container.children
+  if (child) {
+    container.removeChild(child)
+  }
+}
+
+const getContext = (width, height) => {
+  const [existing] = document.getElementsByTagName('canvas')
+  const canvas = existing || document.createElement('canvas')
+  if (!existing) {
+    getContainer().appendChild(canvas)
+  }
+  const context = canvas.getContext('2d')
+  context.clearRect(0, 0, canvas.width, canvas.height)
+  canvas.setAttribute('width', width)
+  canvas.setAttribute('height', height)
+  return context
+}
+
+const render = ({
+  game: {
+    width,
+    height,
+    food,
+    snake,
+    score
+  }, 
+  bestScore,
+  projectDistance,
+  projectPosition
+}) => {
+  const [viewWidth, viewHeight] = [width, height].map(projectDistance)
+  const context = getContext(viewWidth, viewHeight)
+  const cellSide = viewWidth / width
+  renderCells(context, cellSide, width, height)
+  renderFood(context, cellSide, projectPosition(food))
+  renderSnake(context, cellSide, snake.map(projectPosition))
+  renderScores(score, bestScore)
+}
 // #endregion
 
 // #region main
 // #endregion
+
