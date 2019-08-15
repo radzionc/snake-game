@@ -1,10 +1,71 @@
+// #region geometry
+class Vector {
+  constructor(x, y) {
+    this.x = x
+    this.y = y
+  }
+
+  subtract({ x, y }) {
+    return new Vector(this.x - x, this.y - y)
+  }
+
+  scaleBy(number) {
+    return new Vector(this.x * number, this.y * number)
+  }
+}
+// #endregion
+
 // #region constants
 const UPDATE_EVERY = 1000 / 60
+
+const DIRECTION = {
+  TOP: new Vector(0, -1),
+  RIGHT: new Vector(1, 0),
+  DOWN: new Vector(0, 1),
+  LEFT: new Vector(-1, 0)
+}
+
+const DEFAULT_GAME_CONFIG = {
+  width: 17,
+  height: 15,
+  speed: 0.006,
+  initialSnakeLength: 3,
+  initialDirection: DIRECTION.RIGHT
+}
 // #endregion
 
 // #region game core
+const getFood = (width, height, snake) => {
+  return new Vector(0.5, 0.5)
+}
+
 const getGameInitialState = (config = {}) => {
-  return {}
+  const {
+    width,
+    height,
+    speed,
+    initialSnakeLength,
+    initialDirection
+  } = { ...config, ...DEFAULT_GAME_CONFIG }
+  const head = new Vector(
+    Math.round(width / 2) - 0.5,
+    Math.round(height / 2) - 0.5
+  )
+  const tailtip = head.subtract(initialDirection.scaleBy(initialSnakeLength))
+  const snake = [tailtip, head]
+  const food = getFood(width, height, snake)
+
+  return {
+    width,
+    height,
+    speed,
+    initialSnakeLength,
+    initialDirection,
+    snake,
+    direction: initialDirection,
+    food,
+    score: 0
+  }
 }
 // #endregion
 
