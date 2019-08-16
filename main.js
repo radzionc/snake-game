@@ -1,5 +1,8 @@
 // #region general utils
 const getRange = length => [...Array(length).keys()]
+const getWithoutLastElement = array => array.slice(0, array.length - 1)
+const areEqual = (one, another) => Math.abs(one - another) < 0.00000000001
+const getRandomFrom = array => array[Math.floor(Math.random() * array.length)]
 // #endregion
 
 // #region geometry
@@ -16,7 +19,35 @@ class Vector {
   scaleBy(number) {
     return new Vector(this.x * number, this.y * number)
   }
+
+  length() {
+    return Math.hypot(this.x, this.y)
+  }
 }
+
+class Segment {
+  constructor(start, end) {
+    this.start = start
+    this.end = end
+  }
+
+  getVector() {
+    return this.end.subtract(this.start)
+  }
+
+  length() {
+    return this.getVector().length()
+  }
+
+  isPointInside(point) {
+    const first = new Segment(this.start, point)
+    const second = new Segment(point, this.end)
+    return areEqual(this.length(), first.length() + second.length())
+  }
+}
+
+const getSegmentsFromVectors = vectors => getWithoutLastElement(vectors)
+  .map((one, index) => new Segment(one, vectors[index + 1]))
 // #endregion
 
 // #region constants
@@ -40,7 +71,13 @@ const DEFAULT_GAME_CONFIG = {
 
 // #region game core
 const getFood = (width, height, snake) => {
-  return new Vector(0.5, 0.5)
+  const allPositions = getRange(width).map(x => 
+    getRange(height).map(y => new Vector(x + 0.5, y + 0.5))
+  ).flat()
+  const segments = getSegmentsFromVectors(snake)
+  const freePositions = allPositions
+    .filter(point => segments.every(segment => !segment.isPointInside(point)))
+  return getRandomFrom(freePositions)
 }
 
 const getGameInitialState = (config = {}) => {
