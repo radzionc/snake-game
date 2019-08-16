@@ -108,6 +108,31 @@ const getGameInitialState = (config = {}) => {
     score: 0
   }
 }
+
+const getStateAfterMoveProcessing = (state, movement, distance) => {
+  console.log('get state after move processing')
+  return state
+}
+
+const getStateAfterFoodProcessing = (state) => {
+  console.log('get state after food processing')
+  return state
+}
+
+const isGameOver = (state) => {
+  console.log('is game over')
+  return false
+}
+
+const getNewGameState = (state, movement, timespan) => {
+  const distance = state.speed * timespan
+  const stateAfterMove = getStateAfterMoveProcessing(state, movement, distance)
+  const stateAfterFood = getStateAfterFoodProcessing(stateAfterMove)
+  if (isGameOver(stateAfterFood)) {
+    return getGameInitialState(state)
+  }
+  return stateAfterFood
+}
 // #endregion
 
 // #region rendering
@@ -206,8 +231,33 @@ const getInitialState = () => {
   }
 }
 
-const getNewStatePropsOnTick = (props) => {
-  console.log('get new state')
+const getNewStatePropsOnTick = (oldState) => {
+  if (oldState.stopTime) return oldState
+
+  const lastUpdate = Date.now()
+  if (oldState.lastUpdate) {
+    const game = getNewGameState(
+      oldState.game,
+      oldState.movement,
+      lastUpdate - oldState.lastUpdate
+    )
+    const newProps = {
+      game,
+      lastUpdate
+    }
+    if (game.score > oldState.bestScore) {
+      localStorage.setItem('bestScore', game.score)
+      return {
+        ...newProps,
+        bestScore: game.score
+      }
+    }
+    return newProps
+  }
+
+  return {
+    lastUpdate
+  }
 }
 
 const startGame = () => {
