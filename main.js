@@ -217,8 +217,23 @@ const getStateAfterMoveProcessing = (state, movement, distance) => {
 }
 
 const getStateAfterFoodProcessing = (state) => {
-  console.log('get state after food processing')
-  return state
+  const headSegment = new Segment(
+    getLastElement(getWithoutLastElement(state.snake)),
+    getLastElement(state.snake)
+  )
+  if (!headSegment.isPointInside(state.food)) return state
+
+  const [tailEnd, beforeTailEnd, ...restOfSnake] = state.snake
+  const tailSegment = new Segment(beforeTailEnd, tailEnd)
+  const newTailEnd = tailEnd.add(tailSegment.getVector().normalize())
+  const snake = [newTailEnd, beforeTailEnd, ...restOfSnake]
+  const food = getFood(state.width, state.height, snake)
+  return {
+    ...state,
+    snake,
+    score: state.score + 1,
+    food
+  }
 }
 
 const isGameOver = (state) => {
