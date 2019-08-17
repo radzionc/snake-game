@@ -62,6 +62,13 @@ class Segment {
     const second = new Segment(point, this.end)
     return areEqual(this.length(), first.length() + second.length())
   }
+
+  getProjectedPoint({ x, y }) {
+    const { start, end } = this
+    const { x: px, y: py } = end.subtract(start)
+    const u = ((x - start.x) * px + (y - start.y) * py) / (px * px + py * py)
+    return new Vector(start.x + u * px, start.y + u * py)
+  }
 }
 
 const getSegmentsFromVectors = vectors => getWithoutLastElement(vectors)
@@ -236,9 +243,22 @@ const getStateAfterFoodProcessing = (state) => {
   }
 }
 
-const isGameOver = (state) => {
-  console.log('is game over')
-  return false
+const isGameOver = ({ snake, width, height }) => {
+  const { x, y } = getLastElement(snake)
+  if (x < 0 || x > width || y < 0 || y > height) {
+    return true
+  }
+  if (snake.length < 5) return false
+
+  const [head, ...tail] = snake.slice().reverse()
+  return getSegmentsFromVectors(tail).slice(2).find(segment => {
+    const projected = segment.getProjectedPoint(head)
+    if (!segment.isPointInside(projected)) {
+      return false
+    }
+    const distance = new Segment(head, projected).length()
+    return distance < 0.5
+  })
 }
 
 const getNewGameState = (state, movement, timespan) => {
