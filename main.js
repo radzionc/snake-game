@@ -85,6 +85,15 @@ const DEFAULT_GAME_CONFIG = {
   initialSnakeLength: 3,
   initialDirection: DIRECTION.RIGHT
 }
+
+const MOVEMENT_KEYS = {
+  TOP: [87, 38],
+  RIGHT: [68, 39],
+  DOWN: [83, 40],
+  LEFT: [65, 37]
+}
+
+const STOP_KEY = 32
 // #endregion
 
 // #region game core
@@ -236,6 +245,14 @@ const getContainerSize = () => {
   return { width, height }
 }
 
+const clearContainer = () => {
+  const container = getContainer()
+  const [child] = container.children
+  if (child) {
+    container.removeChild(child)
+  }
+}
+
 const getProjectors = (containerSize, game) => {
   const widthRatio = containerSize.width / game.width
   const heightRatio = containerSize.height / game.height
@@ -360,13 +377,26 @@ const startGame = () => {
   }
 
   window.addEventListener('resize', () => {
-    console.log('resize')
+    clearContainer()
+    const containerSize = getContainerSize()
+    updateState({ ...containerSize, ...getProjectors(containerSize, state.game) })
+    tick()
   })
   window.addEventListener('keydown', ({ which }) => {
-    console.log('keydown: ', which)
+    const entries = Object.entries(MOVEMENT_KEYS)
+    const [movement] = entries.find(([, keys]) => keys.includes(which)) || [undefined]
+    updateState({ movement })
   })
   window.addEventListener('keyup', ({ which }) => {
-    console.log('keyup: ', which)
+    updateState({ movement: undefined })
+    if (which === STOP_KEY) {
+      const now = Date.now()
+      if (state.stopTime) {
+        updateState({ stopTime: undefined, lastUpdate: state.time + now - state.lastUpdate })
+      } else {
+        updateState({ stopTime: now })
+      }
+    }
   })
 
   const tick = () => {
