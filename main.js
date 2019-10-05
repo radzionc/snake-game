@@ -1,8 +1,7 @@
 // needed: 
 // position.scaleBy()
 // getRange()
-// getGameInitialState()
-// getNewGameState()
+// getGame()
 
 const UPDATE_EVERY = 1000 / 60
 
@@ -31,9 +30,9 @@ const clearContainer = () => {
   }
 }
 
-const getProjectors = (containerSize, game) => {
-  const widthRatio = containerSize.width / game.width
-  const heightRatio = containerSize.height / game.height
+const getProjectors = (containerSize, { width, height }) => {
+  const widthRatio = containerSize.width / width
+  const heightRatio = containerSize.height / height
   const unitOnScreen = Math.min(widthRatio, heightRatio)
 
   return {
@@ -85,18 +84,9 @@ const renderScores = (score, bestScore) => {
   document.getElementById('best-score').innerText = bestScore
 }
 
-const render = ({
-  game: {
-    width,
-    height,
-    food,
-    snake,
-    score
-  },
-  bestScore,
-  projectDistance,
-  projectPosition
-}) => {
+const render = (state) => {
+  const { game, bestScore, projectDistance, projectPosition } = state
+  const { width, height, food, snake, score } = game.state
   const [viewWidth, viewHeight] = [width, height].map(projectDistance)
   const context = getContext(viewWidth, viewHeight)
   const cellSide = viewWidth / width
@@ -109,13 +99,13 @@ const render = ({
 
 // #region main
 const getInitialState = () => {
-  const game = getGameInitialState()
+  const game = getGame()
   const containerSize = getContainerSize()
   return {
     game,
     bestScore: parseInt(localStorage.bestScore) || 0,
     ...containerSize,
-    ...getProjectors(containerSize, game)
+    ...getProjectors(containerSize, game.state)
   }
 }
 
@@ -124,20 +114,16 @@ const getNewStatePropsOnTick = (oldState) => {
 
   const lastUpdate = Date.now()
   if (oldState.lastUpdate) {
-    const game = getNewGameState(
-      oldState.game,
-      oldState.movement,
-      lastUpdate - oldState.lastUpdate
-    )
+    const game = oldState.game.iterate(oldState.movement, lastUpdate - oldState.lastUpdate)
     const newProps = {
       game,
       lastUpdate
     }
-    if (game.score > oldState.bestScore) {
-      localStorage.setItem('bestScore', game.score)
+    if (game.state.score > oldState.bestScore) {
+      localStorage.setItem('bestScore', game.state.score)
       return {
         ...newProps,
-        bestScore: game.score
+        bestScore: game.state.score
       }
     }
     return newProps
@@ -157,7 +143,7 @@ const startGame = () => {
   window.addEventListener('resize', () => {
     clearContainer()
     const containerSize = getContainerSize()
-    updateState({ ...containerSize, ...getProjectors(containerSize, state.game) })
+    updateState({ ...containerSize, ...getProjectors(containerSize, state.game.state) })
     tick()
   })
   window.addEventListener('keydown', ({ which }) => {

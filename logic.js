@@ -103,35 +103,6 @@ const getFood = (width, height, snake) => {
   return getRandomFrom(freePositions)
 }
 
-const getGameInitialState = (config = {}) => {
-  const {
-    width,
-    height,
-    speed,
-    initialSnakeLength,
-    initialDirection
-  } = { ...config, ...DEFAULT_GAME_CONFIG }
-  const head = new Vector(
-    Math.round(width / 2) - 0.5,
-    Math.round(height / 2) - 0.5
-  )
-  const tailtip = head.subtract(initialDirection.scaleBy(initialSnakeLength))
-  const snake = [tailtip, head]
-  const food = getFood(width, height, snake)
-
-  return {
-    width,
-    height,
-    speed,
-    initialSnakeLength,
-    initialDirection,
-    snake,
-    direction: initialDirection,
-    food,
-    score: 0
-  }
-}
-
 const getNewTail = (oldSnake, distance) => {
   const { tail } = getWithoutLastElement(oldSnake).reduce((acc, point, index) => {
     if (acc.tail.length !== 0) {
@@ -249,14 +220,51 @@ const isGameOver = ({ snake, width, height }) => {
     return distance < 0.5
   })
 }
-
-const getNewGameState = (state, movement, timespan) => {
-  const distance = state.speed * timespan
-  const stateAfterMove = getStateAfterMoveProcessing(state, movement, distance)
-  const stateAfterFood = getStateAfterFoodProcessing(stateAfterMove)
-  if (isGameOver(stateAfterFood)) {
-    return getGameInitialState(state)
-  }
-  return stateAfterFood
-}
 // #endregion
+
+class Game {
+  constructor(state) {
+    this.state = state
+  }
+
+  iterate(movement, timespan) {
+    const distance = this.state.speed * timespan
+    const stateAfterMove = getStateAfterMoveProcessing(this.state, movement, distance)
+    const stateAfterFood = getStateAfterFoodProcessing(stateAfterMove)
+    if (isGameOver(stateAfterFood)) {
+      return getGame(this.state)
+    }
+    return new Game(stateAfterFood)
+  }
+}
+
+const getGame = (config = {}) => {
+  const {
+    width,
+    height,
+    speed,
+    initialSnakeLength,
+    initialDirection
+  } = { ...config, ...DEFAULT_GAME_CONFIG }
+  const head = new Vector(
+    Math.round(width / 2) - 0.5,
+    Math.round(height / 2) - 0.5
+  )
+  const tailtip = head.subtract(initialDirection.scaleBy(initialSnakeLength))
+  const snake = [tailtip, head]
+  const food = getFood(width, height, snake)
+
+  const state = {
+    width,
+    height,
+    speed,
+    initialSnakeLength,
+    initialDirection,
+    snake,
+    direction: initialDirection,
+    food,
+    score: 0
+  }
+
+  return new Game(state)
+}
